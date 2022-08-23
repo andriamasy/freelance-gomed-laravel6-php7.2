@@ -19,14 +19,14 @@ class CreateUsersTable extends Migration
             $table->string('last_name');
             $table->string('email')->unique();
             $table->string('password');
-            $table->string('country_code');
+            $table->string('country_code')->nullable();
             $table->string('mobile');
             $table->string('cover')->nullable();
             $table->string('lat')->nullable();
             $table->string('lng')->nullable();
-            $table->tinyInteger('gender')->nullable();
+            $table->enum('gender', ['male', 'female', 'other'])->default('other');
             $table->tinyInteger('verified')->nullable();
-            $table->string('type')->nullable(); //0 = admin // 1 = user // 2 = store // 3 driver
+            $table->enum('type', ['user', 'admin', 'driver', 'store'])->default('user'); // 0 = admin // 1 = user // 2 = store // 3 driver
             $table->date('dob')->nullable();
             $table->date('date')->nullable();
             $table->text('fcm_token')->nullable();

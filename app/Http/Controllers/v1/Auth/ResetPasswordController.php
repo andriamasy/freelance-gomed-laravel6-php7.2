@@ -9,64 +9,70 @@
 */
 namespace App\Http\Controllers\v1\Auth;
 
+use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
-use Illuminate\Foundation\Auth\SendsPasswordResetEmails;
-use Illuminate\Foundation\Auth\ResetsPasswords;
-use Hash;
-use Illuminate\Auth\Events\PasswordReset;
+use DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
+use JWTAuth;
+use Validator;
 
 class ResetPasswordController extends Controller
 {
-
-    use SendsPasswordResetEmails, ResetsPasswords {
-        SendsPasswordResetEmails::broker insteadof ResetsPasswords;
-        ResetsPasswords::credentials insteadof SendsPasswordResetEmails;
-    }
-
     /**
      * Handle reset password
      */
-    public function callResetPassword(Request $request)
+    public function reset(Request $request, string $token): JsonResponse
     {
-        return $this->reset($request);
-    }
+        if (strlen($token) !== 50) {
+            return new JsonResponse([
+                'success' => false,
+                'message' => "Token not valid."
+            ], 500);
+        }
 
-    /**
-     * Reset the given user's password.
-     *
-     * @param  \Illuminate\Contracts\Auth\CanResetPassword  $user
-     * @param  string  $password
-     * @return void
-     */
-    protected function resetPassword($user, $password)
-    {
-        $user->password = Hash::make($password);
-        $user->save();
-        event(new PasswordReset($user));
-    }
+        $data = DB::table('password_resets')->where('token', $token)->first();
 
-    /**
-     * Get the response for a successful password reset.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  string  $response
-     * @return \Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
-     */
-    protected function sendResetResponse(Request $request, $response)
-    {
-        return response()->json(['message' => 'Password reset successfully.']);
-    }
-    /**
-     * Get the response for a failed password reset.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  string  $response
-     * @return \Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
-     */
-    protected function sendResetFailedResponse(Request $request, $response)
-    {
-        return response()->json(['error' => 'Failed, Invalid Token.'], 401);
-    }
+        if (! $data || now()->diffInDays(Carbon::parse($data->created_at)) <= 2) { // token expired in 2 days or 48 hours
+            $inputs = $request->all();
 
+            $validator = Validator::make($inputs, [
+                'email' => ['required', 'exists:users', 'email'],
+                'password' => ['required', 'string', 'min:6'],
+                'confirm_password' => ['required', 'same:password'],
+            ]);
+
+            if ($validator->fails()) {
+                return new JsonResponse([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 500);
+            }
+
+            if ($user = User::where('email', $inputs['email'])->first()) {
+                $token = JWTAuth::fromUser($user);
+
+                $user->update([
+                    'password' => Hash::make($inputs['password'])
+                ]);
+
+                return new JsonResponse([
+                    'error' => false,
+                    'message' => 'Password reset successfully.',
+                    'data' => [
+                        'user' => $user,
+                        'token' => $token
+                    ],
+                ], 201);
+            }
+        }
+
+        return new JsonResponse([
+            'success' => false,
+            'message' => "Token expired."
+        ], 500);
+    }
 }

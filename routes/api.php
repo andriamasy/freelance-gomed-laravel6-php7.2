@@ -7,6 +7,10 @@
   terms found in the Website https://sayna.io/license
   Copyright and Good Faith Purchasers © 2021-present Sayna.
 */
+
+use App\Http\Controllers\v1\Auth\ForgotPasswordController;
+use App\Http\Controllers\v1\Auth\ResetPasswordController;
+use App\Http\Controllers\v1\Auth\VerifyAccountController;
 use Illuminate\Http\Request;
 use App\Http\Controllers\v1\Auth\AuthController;
 use App\Http\Controllers\v1\Auth\RegisterController;
@@ -56,6 +60,7 @@ use App\Http\Controllers\v1\FlushController;
 */
 
 
+
 Route::get('/', function () {
     return [
         'app' => 'Gomed Delivery API by Sayna',
@@ -65,12 +70,16 @@ Route::get('/', function () {
 
 Route::prefix('/v1')->group(function () {
 
-    Route::group(['namespace' => 'Auth'], function () {
+    Route::post('register', [RegisterController::class, 'register']);
+    Route::post('forgot', [ForgotPasswordController::class, 'forgot']);
+    Route::post('reset/{token}', [ResetPasswordController::class, 'reset']);
+
+    Route::group(['namespace' => 'Auth'], static function () {
 
         Route::post('auth/login', [AuthController::class, 'login']);
         Route::post('auth/loginDrivers', [AuthController::class, 'loginDrivers']);
         Route::post('auth/adminLogin', [AuthController::class, 'adminLogin']);
-        Route::post('auth/create_account', [RegisterController::class, 'register']);
+        // Route::post('auth/create_account', [RegisterController::class, 'register']);
         Route::post('auth/create_admin_account', [RegisterController::class, 'create_admin_account']);
         Route::post('auth/loginWithPhonePassword', [AuthController::class, 'loginWithPhonePassword']);
         Route::post('auth/loginWithPhonePasswordDrivers', [AuthController::class, 'loginWithPhonePasswordDrivers']);
@@ -84,8 +93,6 @@ Route::prefix('/v1')->group(function () {
         Route::post('auth/verifyEmailForResetDriver', [AuthController::class, 'verifyEmailForResetDriver']);
         // Send reset password mail
         Route::post('auth/recovery', [ForgotPasswordController::class, 'sendPasswordResetLink']);
-        // handle reset password form process
-        Route::post('auth/reset', [ResetPasswordController::class, 'callResetPassword']);
         // handle reset password form process
         Route::post('auth/verify', [VerifyAccountController::class, 'verify']);
         Route::post('auth/loginWithMobileOtp', [AuthController::class, 'loginWithMobileOtp']);

@@ -9,6 +9,7 @@
 */
 namespace App\Http\Controllers\v1\Auth;
 
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterRequest;
@@ -19,274 +20,78 @@ use App\Http\Resources\User as UserResource;
 use Illuminate\Foundation\Auth\RegistersUsers;
 use App\Notifications\UserVerifyNotification;
 use Carbon\Carbon;
+use Illuminate\Validation\ValidationException;
 use JWTAuth;
+use Str;
 use Validator;
+
 class RegisterController extends Controller
 {
     /**
      * Register
      *
-     * @param RegisterRequest $request
-     * @return \Illuminate\Http\JsonResponse
-     * @throws \Illuminate\Validation\ValidationException
+     * @param Request $request
+     * @return JsonResponse
+     * @throws ValidationException
      */
-    public function register(Request $request)
+    public function register(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'email' => 'required',
-            'first_name'=>'required',
-            'last_name'=>'required',
-            'mobile'=>'required',
-            'cover'=>'required',
-            'country_code'=>'required',
-            'password' => 'required',
+        $inputs = $request->all();
+
+        $validator = Validator::make($inputs, [
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'unique:users', 'email', 'max:255'],
+            'password' => ['required', 'string', 'min:6'],
+            'confirm_password' => ['required', 'same:password'],
+            'cover' => ['required', 'string'],
+            'mobile' => ['required', 'numeric', 'unique:users', 'digits:10'],
+            'country_code' => ['required', 'string'],
+            'lat' => [],
+            'lng' => [],
+            'gender' => [],
+            'verified' => [],
+            'type' => [],
+            'dob' => [],
+            'date' => [],
+            'fcm_token' => [],
+            'others' => [],
+            'stripe_key' => [],
+            'extra_field' => [],
+            'status' => []
         ]);
+
         if ($validator->fails()) {
-            $response = [
+            return new JsonResponse([
                 'success' => false,
-                'message' => 'Validation Error.', $validator->errors(),
-                'status'=> 500
-            ];
-            return response()->json($response, 500);
+                'errors' => $validator->errors()
+            ], 500);
         }
-        $emailValidation = User::where('email',$request->email)->first();
-        if (is_null($emailValidation) || !$emailValidation) {
 
-            $matchThese = ['country_code' => $request->country_code, 'mobile' => $request->mobile];
-            $data = User::where($matchThese)->first();
-            if (is_null($data) || !$data) {
-                    $user = User::create([
-                    'email' => $request->email,
-                    'first_name'=>$request->first_name,
-                    'last_name'=>$request->last_name,
-                    'type'=>'user',
-                    'status'=>1,
-                    'mobile'=>$request->mobile,
-                    'country_code'=>$request->country_code,
-                    'password' => Hash::make($request->password),
-                ]);
+        try {
+            $user = User::create(array_merge(
+                $validator->validated(),
+                ['password' => Hash::make($inputs['password'])]
+            ));
 
-                $token = JWTAuth::fromUser($user);
-                function clean($string) {
-                    $string = str_replace(' ', '-', $string); // Replaces all spaces with hyphens.
+            $token = JWTAuth::fromUser($user);
 
-                    return preg_replace('/[^A-Za-z0-9\-]/', '', $string); // Removes special chars.
-                }
-                function generateRandomString($length = 10) {
-                    $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-                    $charactersLength = strlen($characters);
-                    $randomString = '';
-                    for ($i = 0; $i < $length; $i++) {
-                        $randomString .= $characters[rand(0, $charactersLength - 1)];
-                    }
-                    return $randomString;
-                }
-                $code = generateRandomString(13);
-                $code  = strtoupper($code);
-                ReferralCodes::create(['uid'=>$user->id,'code'=>$code]);
-                return response()->json(['user'=>$user,'token'=>$token,'status'=>200], 200);
-            }
+            ReferralCodes::create(['uid'=>$user->id,'code'=> Str::random(256)]);
 
-            $response = [
-                'success' => false,
-                'message' => 'Mobile is already registered.',
-                'status' => 500
-            ];
-            return response()->json($response, 500);
+            return new JsonResponse([
+                'success' => true,
+                'message' => 'L\'utilisateur a bien été créé avec succès.',
+                'data' => [
+                    'user' => $user,
+                    'token' => $token
+                ],
+            ], 201);
+
+        } catch (ValidationException $exception){
+            return new JsonResponse([
+                'error' => true,
+                'message' => $exception->getMessage()
+            ], 409);
         }
-        $response = [
-            'success' => false,
-            'message' => 'Email is already taken',
-            'status' => 500
-        ];
-        return response()->json($response, 500);
-    }
-
-    public function createStoreProfile(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'email' => 'required',
-            'first_name'=>'required',
-            'last_name'=>'required',
-            'mobile'=>'required',
-            'country_code'=>'required',
-            'password' => 'required',
-        ]);
-        if ($validator->fails()) {
-            $response = [
-                'success' => false,
-                'message' => 'Validation Error.', $validator->errors(),
-                'status'=> 500
-            ];
-            return response()->json($response, 500);
-        }
-        $emailValidation = User::where('email',$request->email)->first();
-        if (is_null($emailValidation) || !$emailValidation) {
-
-            $matchThese = ['country_code' => $request->country_code, 'mobile' => $request->mobile];
-            $data = User::where($matchThese)->first();
-            if (is_null($data) || !$data) {
-                $user = User::create([
-                    'email' => $request->email,
-                    'first_name'=>$request->first_name,
-                    'last_name'=>$request->last_name,
-                    'type'=>'store',
-                    'status'=>1,
-                    'mobile'=>$request->mobile,
-                    'lat'=>0,
-                    'lng'=>0,
-                    'cover'=>'NA',
-                    'country_code'=>$request->country_code,
-                    'gender'=>1,
-                    'dob'=>'1997-07-15',
-                    'password' => Hash::make($request->password),
-                ]);
-
-                $token = JWTAuth::fromUser($user);
-                return response()->json(['user'=>$user,'token'=>$token,'status'=>200], 200);
-            }
-
-            $response = [
-                'success' => false,
-                'message' => 'Mobile is already registered.',
-                'status' => 500
-            ];
-            return response()->json($response, 500);
-        }
-        $response = [
-            'success' => false,
-            'message' => 'Email is already taken',
-            'status' => 500
-        ];
-        return response()->json($response, 500);
-    }
-
-    public function create_admin_account(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'email' => 'required',
-            'first_name'=>'required',
-            'last_name'=>'required',
-            'mobile'=>'required',
-            'country_code'=>'required',
-            'password' => 'required',
-        ]);
-        if ($validator->fails()) {
-            $response = [
-                'success' => false,
-                'message' => 'Validation Error.', $validator->errors(),
-                'status'=> 500
-            ];
-            return response()->json($response, 500);
-        }
-        $emailValidation = User::where('email',$request->email)->first();
-        if (is_null($emailValidation) || !$emailValidation) {
-
-            $matchThese = ['country_code' => $request->country_code, 'mobile' => $request->mobile];
-            $data = User::where($matchThese)->first();
-            if (is_null($data) || !$data) {
-                $checkExistOrNot = User::where('type','=','admin')->first();
-
-                if (is_null($checkExistOrNot)) {
-                    $user = User::create([
-                        'email' => $request->email,
-                        'first_name'=>$request->first_name,
-                        'last_name'=>$request->last_name,
-                        'type'=>'admin',
-                        'status'=>1,
-                        'mobile'=>$request->mobile,
-                        'lat'=>0,
-                        'lng'=>0,
-                        'cover'=>'NA',
-                        'country_code'=>$request->country_code,
-                        'gender'=>1,
-                        'dob'=>'1997-07-15',
-                        'password' => Hash::make($request->password),
-                    ]);
-
-                    $token = JWTAuth::fromUser($user);
-                    return response()->json(['user'=>$user,'token'=>$token,'status'=>200], 200);
-                }
-
-                $response = [
-                    'success' => false,
-                    'message' => 'Account already setuped',
-                    'status' => 500
-                ];
-                return response()->json($response, 500);
-            }
-
-            $response = [
-                'success' => false,
-                'message' => 'Mobile is already registered.',
-                'status' => 500
-            ];
-            return response()->json($response, 500);
-        }
-        $response = [
-            'success' => false,
-            'message' => 'Email is already taken',
-            'status' => 500
-        ];
-        return response()->json($response, 500);
-    }
-
-    public function adminNewAdmin(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'email' => 'required',
-            'first_name'=>'required',
-            'last_name'=>'required',
-            'mobile'=>'required',
-            'country_code'=>'required',
-            'password' => 'required',
-        ]);
-        if ($validator->fails()) {
-            $response = [
-                'success' => false,
-                'message' => 'Validation Error.', $validator->errors(),
-                'status'=> 500
-            ];
-            return response()->json($response, 500);
-        }
-        $emailValidation = User::where('email',$request->email)->first();
-        if (is_null($emailValidation) || !$emailValidation) {
-
-            $matchThese = ['country_code' => $request->country_code, 'mobile' => $request->mobile];
-            $data = User::where($matchThese)->first();
-            if (is_null($data) || !$data) {
-                $user = User::create([
-                    'email' => $request->email,
-                    'first_name'=>$request->first_name,
-                    'last_name'=>$request->last_name,
-                    'type'=>'admin',
-                    'status'=>1,
-                    'mobile'=>$request->mobile,
-                    'lat'=>0,
-                    'lng'=>0,
-                    'cover'=>'NA',
-                    'country_code'=>$request->country_code,
-                    'gender'=>1,
-                    'dob'=>'1997-07-15',
-                    'password' => Hash::make($request->password),
-                ]);
-
-                $token = JWTAuth::fromUser($user);
-                return response()->json(['user'=>$user,'token'=>$token,'status'=>200], 200);
-            }
-
-            $response = [
-                'success' => false,
-                'message' => 'Mobile is already registered.',
-                'status' => 500
-            ];
-            return response()->json($response, 500);
-        }
-        $response = [
-            'success' => false,
-            'message' => 'Email is already taken',
-            'status' => 500
-        ];
-        return response()->json($response, 500);
     }
 }

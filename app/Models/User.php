@@ -9,15 +9,18 @@
 */
 namespace App\Models;
 
+use App\Notifications\MailResetPasswordNotification;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 use Bavix\Wallet\Traits\HasWallet;
 use Bavix\Wallet\Interfaces\Wallet;
-class User extends Authenticatable implements JWTSubject, MustVerifyEmail,Wallet
+
+class User extends Authenticatable implements JWTSubject, MustVerifyEmail, Wallet
 {
-    use Notifiable,HasWallet;
+    use HasWallet;
+    use Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -25,8 +28,25 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail,Wallet
      * @var array
      */
     protected $fillable = [
-        'email', 'password', 'first_name','last_name','mobile','country_code','cover','lat','lng','gender','verified','type',
-        'dob','date','fcm_token','others','stripe_key','extra_field','status'
+        'first_name',
+        'last_name',
+        'email',
+        'password',
+        'mobile',
+        'country_code',
+        'cover',
+        'lat',
+        'lng',
+        'gender',
+        'verified',
+        'type',
+        'dob',
+        'date',
+        'fcm_token',
+        'others',
+        'stripe_key',
+        'extra_field',
+        'status'
     ];
 
     /**
@@ -59,7 +79,7 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail,Wallet
      *
      * @return array
      */
-    public function getJWTCustomClaims()
+    public function getJWTCustomClaims(): array
     {
         return [];
     }
@@ -69,6 +89,6 @@ class User extends Authenticatable implements JWTSubject, MustVerifyEmail,Wallet
      */
     public function sendPasswordResetNotification($token)
     {
-        $this->notify(new \App\Notifications\MailResetPasswordNotification($token));
+        $this->notify(new MailResetPasswordNotification($token));
     }
 }

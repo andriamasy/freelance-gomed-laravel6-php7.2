@@ -9,48 +9,48 @@
 */
 namespace App\Http\Controllers\v1\Auth;
 
+use App\Mail\SendPasswordResetLink;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Foundation\Auth\SendsPasswordResetEmails;
 use Illuminate\Foundation\Auth\ResetsPasswords;
-use  App\Http\Requests\Auth\ForgotPasswordRequest;
+use App\Http\Requests\Auth\ForgotPasswordRequest;
+use Mail;
+use \Validator;
+use Str;
+use DB;
+
 class ForgotPasswordController extends Controller
 {
-    use SendsPasswordResetEmails, ResetsPasswords {
-        SendsPasswordResetEmails::broker insteadof ResetsPasswords;
-        ResetsPasswords::credentials insteadof SendsPasswordResetEmails;
-    }
-    /**
-     * Send password reset link.
-     */
-    public function sendPasswordResetLink(ForgotPasswordRequest $request)
+    public function forgot(Request $request): JsonResponse
     {
-        return $this->sendResetLinkEmail($request);
-    }
+        $inputs = $request->all();
 
-    /**
-     * Get the response for a successful password reset link.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  string  $response
-     * @return \Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
-     */
-    protected function sendResetLinkResponse(Request $request, $response)
-    {
-        return response()->json([
-            'message' => 'Password reset email sent.',
-            'data' => $response
+        $validator = Validator::make($inputs, [
+            'email' => 'required|email|exists:users'
         ]);
-    }
-    /**
-     * Get the response for a failed password reset link.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  string  $response
-     * @return \Illuminate\Http\RedirectResponse|\Illuminate\Http\JsonResponse
-     */
-    protected function sendResetLinkFailedResponse(Request $request, $response)
-    {
-        return response()->json(['error' => 'Email could not be sent to this email address.'], 401);
+
+        if ($validator->fails()) {
+            return new JsonResponse([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 500);
+        }
+
+        DB::table('password_resets')->where('email', $inputs['email'])->delete();
+
+        DB::table('password_resets')->insert([
+            'email' => $inputs['email'],
+            'token' => $token = Str::random(50),
+            'created_at' => new \DateTime('now')
+        ]);
+
+        Mail::to($inputs['email'])->send(new SendPasswordResetLink($token));
+
+        return new JsonResponse([
+            'success' => true,
+            'message' => "Password reset link sent."
+        ]);
     }
 }
